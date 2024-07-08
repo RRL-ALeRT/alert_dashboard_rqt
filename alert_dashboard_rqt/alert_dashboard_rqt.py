@@ -39,6 +39,7 @@ ALL_WINDOW_COMMANDS = {
     "audio_play": "ros2 run audio_play audio_play_node --ros-args -p format:=wave -r __ns:=/operator",
     "thermal_cam": "ros2 launch seek_thermal_ros thermal_publisher_launch.py",
     "hazmat_detection": "ros2 run world_info object_detection_yolov5 hazmat /kinova_color",
+    "motion_detection": "ros2 run spot_driver_plus motion_detection.py",
     # Additional
     "blocksworld_scan": "ros2 run world_info aruco_node",
     "blocksworld_gpp_wrapper": "ros2 run webots_spot gpp_blocksworld_server",

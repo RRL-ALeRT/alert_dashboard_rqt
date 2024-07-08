@@ -1,7 +1,12 @@
-import paramiko
+import warnings
+from cryptography.utils import CryptographyDeprecationWarning
+with warnings.catch_warnings():
+    warnings.filterwarnings('ignore', category=CryptographyDeprecationWarning)
+    import paramiko
+    # https://github.com/paramiko/paramiko/issues/2038#issuecomment-1113368347
+
 import subprocess
 import time
-
 
 class TmuxWrapperBase:
     def __init__(self, session_name):
@@ -9,13 +14,18 @@ class TmuxWrapperBase:
         self.ssh = None
 
     def _execute_command(self, command):
-        try:
-            _, stdout, stderr = self.ssh.exec_command(command, get_pty=True)
-            return stdout.read().decode().strip()
-        except paramiko.SSHException as e:
-            print(f"Error executing command: {e}")
-        except AttributeError as e:
-            print(f"Error executing command: {e}")
+        if self.ssh:  # If ssh client is set, execute remotely
+            try:
+                _, stdout, stderr = self.ssh.exec_command(command, get_pty=True)
+                return stdout.read().decode().strip()
+            except paramiko.SSHException as e:
+                print(f"Error executing command: {e}")
+        else:  # Execute locally
+            try:
+                result = subprocess.run(command, shell=True, capture_output=True, text=True)
+                return result.stdout.strip()
+            except subprocess.CalledProcessError as e:
+                print(f"Error executing command: {e}")
         return None
 
     def new_session(self):
@@ -77,7 +87,8 @@ class TmuxSSHWrapper(TmuxWrapperBase):
                 time.sleep(1)
 
     def __del__(self):
-        self.ssh.close()
+        if self.ssh:
+            self.ssh.close()
 
 
 class TmuxLocalWrapper(TmuxWrapperBase):
