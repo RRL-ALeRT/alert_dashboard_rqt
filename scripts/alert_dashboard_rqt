@@ -1,0 +1,10 @@
+#!/usr/bin/env python
+
+import sys
+
+from alert_dashboard_rqt.alert_dashboard_rqt import EstopRqtPlugin
+from rqt_gui.main import Main
+
+plugin = 'alert_dashboard_rqt'
+main = Main(filename=plugin)
+sys.exit(main.main(standalone=plugin))

@@ -1,0 +1,33 @@
+<library path="src">
+  <class name="Estop Rqt Plugin" type="alert_dashboard_rqt.spot_estop_rqt.EstopRqtPlugin" base_class_type="rqt_gui_py::Plugin">
+    <description>
+      A GUI plugin for emergency stop (estop) functionality.
+    </description>
+    <qtgui>
+      <group>
+        <label>ALeRT</label>
+        <icon type="theme">folder</icon>
+        <statustip>Plugins related to RRL.</statustip>
+      </group>
+      <label>EStop Plugin</label>
+      <icon type="theme">process-stop</icon>
+      <statustip>A GUI plugin for sending estop commands.</statustip>
+    </qtgui>
+  </class>
+
+  <class name="ALeRT Dashboard" type="alert_dashboard_rqt.alert_dashboard_rqt.DashboardRqtPlugin" base_class_type="rqt_gui_py::Plugin">
+    <description>
+      A GUI plugin for emergency stop (estop) functionality.
+    </description>
+    <qtgui>
+      <group>
+        <label>ALeRT</label>
+        <icon type="theme">folder</icon>
+        <statustip>Plugins related to RRL.</statustip>
+      </group>
+      <label>Dashboard</label>
+      <icon type="theme">process-stop</icon>
+      <statustip>A GUI plugin for debugging.</statustip>
+    </qtgui>
+  </class>
+</library>

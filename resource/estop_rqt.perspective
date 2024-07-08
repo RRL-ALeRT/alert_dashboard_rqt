@@ -1,0 +1,239 @@
+{
+  "keys": {},
+  "groups": {
+    "mainwindow": {
+      "keys": {
+        "geometry": {
+          "repr(QByteArray.hex)": "QtCore.QByteArray(b'01d9d0cb000300000000027a00000000000004ff000002e90000027a0000001d000004ff000002e9000000000000000005000000027a0000001d000004ff000002e9')",
+          "type": "repr(QByteArray.hex)",
+          "pretty-print": "     z       z            z      "
+        },
+        "state": {
+          "repr(QByteArray.hex)": "QtCore.QByteArray(b'000000ff00000000fd00000001000000030000028600000297fc0100000002fc00000000000001400000014000fffffffc0200000002fb0000006600720072006c005f0069006d006100670065005f0076006900650077005f005f00520052004c0049006d0061006700650056006900650077005f005f0031005f005f00520052004c0049006d0061006700650056006900650077005700690064006700650074010000001b000001510000010a00fffffffb0000006600720072006c005f0069006d006100670065005f0076006900650077005f005f00520052004c0049006d0061006700650056006900650077005f005f0032005f005f00520052004c0049006d00610067006500560069006500770057006900640067006500740100000172000001400000010a00fffffffc00000146000001400000014000fffffffc0200000002fb0000006600720072006c005f0069006d006100670065005f0076006900650077005f005f00520052004c0049006d0061006700650056006900650077005f005f0033005f005f00520052004c0049006d0061006700650056006900650077005700690064006700650074010000001b000001500000010a00fffffffb000000540061006c006500720074005f00640061007300680062006f006100720064005f007200710074005f005f004500730074006f0070002000520071007400200050006c007500670069006e005f005f0031005f005f010000017100000141000000e200ffffff000002860000000000000004000000040000000800000008fc00000001000000030000000100000036004d0069006e0069006d0069007a006500640044006f0063006b00570069006400670065007400730054006f006f006c0062006100720000000000ffffffff0000000000000000')",
+          "type": "repr(QByteArray.hex)",
+          "pretty-print": "                   @ @                                                              Q                                                           r @                 frrl_image_view__RRLImageView__3__RRLImageViewWidget          Talert_dashboard_rqt__Estop Rqt Plugin__1__                            6MinimizedDockWidgetsToolbar        "
+        }
+      },
+      "groups": {
+        "toolbar_areas": {
+          "keys": {
+            "MinimizedDockWidgetsToolbar": {
+              "repr": "8",
+              "type": "repr"
+            }
+          },
+          "groups": {}
+        }
+      }
+    },
+    "pluginmanager": {
+      "keys": {
+        "running-plugins": {
+          "repr": "{'alert_dashboard_rqt/Estop Rqt Plugin': [1], 'rrl_image_view/RRLImageView': [1, 2, 3]}",
+          "type": "repr"
+        }
+      },
+      "groups": {
+        "plugin__alert_dashboard_rqt__Estop Rqt Plugin__1": {
+          "keys": {},
+          "groups": {
+            "dock_widget__": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "''",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "True",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rrl_image_view__RRLImageView__1": {
+          "keys": {},
+          "groups": {
+            "dock_widget__RRLImageViewWidget": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "''",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "True",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "rotate": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "toolbar_hidden": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "topic": {
+                  "repr": "'/kinova_color'",
+                  "type": "repr"
+                },
+                "zoom1": {
+                  "repr": "False",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rrl_image_view__RRLImageView__2": {
+          "keys": {},
+          "groups": {
+            "dock_widget__RRLImageViewWidget": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "' (2)'",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "True",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "rotate": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "toolbar_hidden": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "topic": {
+                  "repr": "'/rs_front/color/image_raw'",
+                  "type": "repr"
+                },
+                "zoom1": {
+                  "repr": "False",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rrl_image_view__RRLImageView__3": {
+          "keys": {},
+          "groups": {
+            "dock_widget__RRLImageViewWidget": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "' (3)'",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "True",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "rotate": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "toolbar_hidden": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "topic": {
+                  "repr": "'/camera/back/image'",
+                  "type": "repr"
+                },
+                "zoom1": {
+                  "repr": "False",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rrl_image_view__RRLImageView__4": {
+          "keys": {},
+          "groups": {
+            "plugin": {
+              "keys": {
+                "rotate": {
+                  "repr": "'0'",
+                  "type": "repr"
+                },
+                "toolbar_hidden": {
+                  "repr": "'false'",
+                  "type": "repr"
+                },
+                "topic": {
+                  "repr": "''",
+                  "type": "repr"
+                },
+                "zoom1": {
+                  "repr": "'false'",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__spot_estop_rqt__Estop Rqt Plugin__1": {
+          "keys": {},
+          "groups": {
+            "dock_widget__": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "''",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "'true'",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}
