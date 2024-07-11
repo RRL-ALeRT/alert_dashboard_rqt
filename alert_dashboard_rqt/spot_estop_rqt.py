@@ -56,6 +56,10 @@ ALL_WINDOW_COMMANDS = {
     "blocksworld_scan": "ros2 run world_info aruco_node",
     "blocksworld_gpp_wrapper": "ros2 run webots_spot gpp_blocksworld_server",
     "blocksworld_gpp_agent": "ros2 launch webots_spot blocksworld_launch.py",
+    # Exploration
+    "exp_frontier": "ros2 run rrt_exploration frontier_opencv_detector.py",
+    "exp_detection": "ros2 launch rrl_launchers exp_mapping_launch.py",
+    "exp_save_map": "ros2 run hector_geotiff geotiff_saver",
 }
 
 if MAX_IP is None:
@@ -137,6 +141,7 @@ class EstopRqtPlugin(Plugin):
                 background: white;
                 width: 50px;
                 border-radius: 25px;
+                border: 1px solid #777;
                 margin: -20px 0;
                 subcontrol-origin: margin;
                 subcontrol-position: center center;
@@ -278,6 +283,97 @@ class EstopRqtPlugin(Plugin):
         )
         third_tab_layout.addWidget(self.toggle_blocks_execute)
 
+        ### FOURTH TAB (Exploration)
+        # Create layouts for Exploration tab
+        exploration_layout = QVBoxLayout()
+
+        ## Widgets for Exploration tab
+        exploration_slider = QSlider(Qt.Horizontal)
+        exploration_slider.setRange(1, 10)
+        exploration_slider.setStyleSheet(
+            """
+            QSlider::groove:horizontal {
+                background: lightgray;
+                height: 15px;
+                border-radius: 5px;
+                margin: 20px;
+            }
+            QSlider::handle:horizontal {
+                background: white;
+                border-radius: 25px;
+                border: 1px solid #777;
+                width: 50px;
+                margin: -5px 0;
+            }
+            """
+        )
+
+        self.lap_number = 1
+        self.exploration_slider_label = QLabel(f"Lap: {self.lap_number}")
+        exploration_slider.valueChanged.connect(self.lap_value_update)
+        self.exploration_slider_label.setAlignment(Qt.AlignCenter)
+
+        exploration_toggle = QPushButton("Start/Stop")
+        exploration_toggle.setCheckable(True)
+        exploration_toggle.setChecked(False)
+        exploration_toggle.setStyleSheet(
+            """
+            QPushButton {
+                font: bold 12px;
+                border: 1px solid #777;
+                background-color: lightgray;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            QPushButton:checked {
+                background-color: lightblue;
+            }
+            """
+        )
+        exploration_toggle.toggled.connect(self.toggle_exploration)
+
+        exploration_reset_button = QPushButton("Reset Map")
+        exploration_reset_button.setStyleSheet(
+            """
+            QPushButton {
+                font: bold 12px;
+                border: 1px solid #777;
+                background-color: lightcoral;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            """
+        )
+        exploration_reset_button.clicked.connect(self.world_reset_command)
+
+        exploration_save_button = QPushButton("Save Maps")
+        exploration_save_button.setStyleSheet(
+            """
+            QPushButton {
+                font: bold 12px;
+                border: 1px solid #777;
+                background-color: lightseagreen;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            """
+        )
+        exploration_save_button.clicked.connect(self.save_exp_maps)
+
+        # Add widgets to layout
+        exploration_layout.addWidget(exploration_slider)
+        exploration_layout.addWidget(self.exploration_slider_label)
+        exploration_layout.addWidget(exploration_toggle)
+        exploration_layout.addWidget(exploration_reset_button)
+        exploration_layout.addWidget(exploration_save_button)
+
+        # Create widget and set layout
+        exploration_tab_widget = QWidget()
+        exploration_tab_widget.setLayout(exploration_layout)
+
+        # Add Exploration tab to the tab widget
+        tab_widget.addTab(exploration_tab_widget, "Exploration")
+
         ## FINAL BOX
         # Create tab widgets
         first_tab_widget = QWidget()
@@ -293,6 +389,7 @@ class EstopRqtPlugin(Plugin):
         tab_widget.addTab(first_tab_widget, "BASIC")
         tab_widget.addTab(second_tab_widget, "PLUS")
         tab_widget.addTab(third_tab_widget, "BW")
+        tab_widget.addTab(exploration_tab_widget, "EXP")
 
         # Apply style to the tab widget
         tab_widget.setStyleSheet(
@@ -516,6 +613,27 @@ class EstopRqtPlugin(Plugin):
 
             self.tmux.kill_window("blocksworld_gpp_wrapper")
             self.tmux.kill_window("blocksworld_gpp_agent")
+
+    # Exploration
+    def toggle_exploration(self, checked):
+        frontier_window_name = "exp_frontier"
+        detection_window_name = "exp_detection"
+        if checked:
+            self.tmux.temporary_window(frontier_window_name, ALL_WINDOW_COMMANDS[frontier_window_name])
+            self.tmux.temporary_window(detection_window_name, ALL_WINDOW_COMMANDS[detection_window_name])
+        else:
+            self.tmux.kill_window(frontier_window_name)
+            self.tmux.kill_window(detection_window_name)
+
+    def lap_value_update(self, value):
+        # Update the label
+        self.exploration_slider_label.setText(f"Lap: {value}")
+        self.lap_number = value
+    
+    def save_exp_maps(self):
+        map_save_window_name = "exp_save_map"
+        command = f"cd && mkdir -p exp_maps/{self.lap_number} && cd exp_maps/{self.lap_number} && " + ALL_WINDOW_COMMANDS[map_save_window_name] + f" {self.lap_number}"
+        self.tmux.temporary_window(map_save_window_name, command)
 
     def shutdown_plugin(self):
         self.node.destroy_node()
