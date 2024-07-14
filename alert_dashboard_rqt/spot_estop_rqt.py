@@ -9,7 +9,7 @@ import rclpy
 from rclpy.qos import QoSProfile
 
 from std_msgs.msg import String
-from std_srvs.srv import Empty, Trigger
+from std_srvs.srv import Empty, Trigger, SetBool
 from spot_msgs.msg import BatteryStateArray
 
 from rqt_gui_py.plugin import Plugin
@@ -56,6 +56,12 @@ ALL_WINDOW_COMMANDS = {
     "blocksworld_scan": "ros2 run world_info aruco_node",
     "blocksworld_gpp_wrapper": "ros2 run webots_spot gpp_blocksworld_server",
     "blocksworld_gpp_agent": "ros2 launch webots_spot blocksworld_launch.py",
+    # Exploration
+    "exp_frontier": "ros2 run rrt_exploration frontier_opencv_detector.py",
+    "exp_detection": "ros2 launch rrl_launchers exp_mapping_launch.py",
+    "exp_save_map": "ros2 run hector_geotiff geotiff_saver",
+    # Navigation
+    "nav_3d_to_2d": "ros2 run spot_driver_plus plan_3d_path.py"
 }
 
 if MAX_IP is None:
@@ -92,6 +98,13 @@ class EstopRqtPlugin(Plugin):
         )
         self.octomap_reset_client = self.node.create_client(
             Empty, "/octomap_server/reset"
+        )
+        self.octomap_nav_reset_client = self.node.create_client(
+            Empty, "/navigation/octomap_server/reset"
+        )
+
+        self.nav_3d_follow_path_client = self.node.create_client(
+            SetBool, "/navigation/follow_path"
         )
 
         # Create the main widget and set up the layout
@@ -137,6 +150,7 @@ class EstopRqtPlugin(Plugin):
                 background: white;
                 width: 50px;
                 border-radius: 25px;
+                border: 1px solid #777;
                 margin: -20px 0;
                 subcontrol-origin: margin;
                 subcontrol-position: center center;
@@ -278,6 +292,138 @@ class EstopRqtPlugin(Plugin):
         )
         third_tab_layout.addWidget(self.toggle_blocks_execute)
 
+        ### FOURTH TAB (Exploration)
+        # Create layouts for Exploration tab
+        exploration_layout = QVBoxLayout()
+
+        ## Widgets for Exploration tab
+        exploration_slider = QSlider(Qt.Horizontal)
+        exploration_slider.setRange(1, 10)
+        exploration_slider.setStyleSheet(
+            """
+            QSlider::groove:horizontal {
+                background: lightgray;
+                height: 15px;
+                border-radius: 5px;
+                margin: 20px;
+            }
+            QSlider::handle:horizontal {
+                background: white;
+                border-radius: 25px;
+                border: 1px solid #777;
+                width: 50px;
+                margin: -5px 0;
+            }
+            """
+        )
+
+        self.lap_number = 1
+        self.exploration_slider_label = QLabel(f"Lap: {self.lap_number}")
+        exploration_slider.valueChanged.connect(self.lap_value_update)
+        self.exploration_slider_label.setAlignment(Qt.AlignCenter)
+
+        exploration_toggle = QPushButton("Start/Stop")
+        exploration_toggle.setCheckable(True)
+        exploration_toggle.setChecked(False)
+        exploration_toggle.setStyleSheet(
+            """
+            QPushButton {
+                font: bold 12px;
+                border: 1px solid #777;
+                background-color: lightgray;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            QPushButton:checked {
+                background-color: lightblue;
+            }
+            """
+        )
+        exploration_toggle.toggled.connect(self.toggle_exploration)
+
+        exploration_reset_button = QPushButton("Reset Map")
+        exploration_reset_button.setStyleSheet(
+            """
+            QPushButton {
+                font: bold 12px;
+                border: 1px solid #777;
+                background-color: lightcoral;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            """
+        )
+        exploration_reset_button.clicked.connect(self.world_reset_command)
+
+        exploration_save_button = QPushButton("Save Maps")
+        exploration_save_button.setStyleSheet(
+            """
+            QPushButton {
+                font: bold 12px;
+                border: 1px solid #777;
+                background-color: lightseagreen;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            """
+        )
+        exploration_save_button.clicked.connect(self.save_exp_maps)
+
+        # Add widgets to layout
+        exploration_layout.addWidget(exploration_slider)
+        exploration_layout.addWidget(self.exploration_slider_label)
+        exploration_layout.addWidget(exploration_toggle)
+        exploration_layout.addWidget(exploration_reset_button)
+        exploration_layout.addWidget(exploration_save_button)
+
+        # Create widget and set layout
+        exploration_tab_widget = QWidget()
+        exploration_tab_widget.setLayout(exploration_layout)
+
+        ### FIFTH TAB (Navigation)
+        navigation_layout = QVBoxLayout()
+
+        navigation_toggle = QPushButton("Start/Stop")
+        navigation_toggle.setCheckable(True)
+        navigation_toggle.setChecked(False)
+        navigation_toggle.setStyleSheet(
+            """
+            QPushButton {
+                font: bold 12px;
+                border: 1px solid #777;
+                background-color: lightgray;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            QPushButton:checked {
+                background-color: lightblue;
+            }
+            """
+        )
+        navigation_toggle.toggled.connect(self.toggle_navigation)
+
+        navigation_follow_path_button = QPushButton("Follow Path")
+        navigation_follow_path_button.setStyleSheet(
+            """
+            QPushButton {
+                font: bold 12px;
+                border: 1px solid #777;
+                background-color: lightcoral;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            """
+        )
+        navigation_follow_path_button.clicked.connect(self.follow_path_command)
+
+        # Add widgets to layout
+        navigation_layout.addWidget(navigation_toggle)
+        navigation_layout.addWidget(navigation_follow_path_button)
+
+        # Create widget and set layout
+        navigation_tab_widget = QWidget()
+        navigation_tab_widget.setLayout(navigation_layout)
+
         ## FINAL BOX
         # Create tab widgets
         first_tab_widget = QWidget()
@@ -293,6 +439,8 @@ class EstopRqtPlugin(Plugin):
         tab_widget.addTab(first_tab_widget, "BASIC")
         tab_widget.addTab(second_tab_widget, "PLUS")
         tab_widget.addTab(third_tab_widget, "BW")
+        tab_widget.addTab(exploration_tab_widget, "EXP")
+        tab_widget.addTab(navigation_tab_widget, "NAV")
 
         # Apply style to the tab widget
         tab_widget.setStyleSheet(
@@ -433,7 +581,6 @@ class EstopRqtPlugin(Plugin):
         self.tmux.temporary_window("realsenses", ALL_WINDOW_COMMANDS["realsenses"], 4)
         self.tmux.temporary_window("octomap", ALL_WINDOW_COMMANDS["octomap"], 5)
         self.tmux.temporary_window("realsenses", ALL_WINDOW_COMMANDS["realsenses"], 6)
-        self.tmux.temporary_window("thermal_cam", ALL_WINDOW_COMMANDS["thermal_cam"], 7)
 
     def hazmat_command(self):
         self.tmux.temporary_window(
@@ -469,6 +616,13 @@ class EstopRqtPlugin(Plugin):
         else:
             self.octomap_reset_client.call_async(Empty.Request())
 
+        if not self.octomap_nav_reset_client.wait_for_service(timeout_sec=1.0):
+            self.node.get_logger().info(
+                "service navigation/octomap_reset not available, skipping command"
+            )
+        else:
+            self.octomap_nav_reset_client.call_async(Empty.Request())
+            
     # BLOCKSWORLD
     def block_loc_update(self, msg):
         if self.blocks_scan_checked:
@@ -516,6 +670,58 @@ class EstopRqtPlugin(Plugin):
 
             self.tmux.kill_window("blocksworld_gpp_wrapper")
             self.tmux.kill_window("blocksworld_gpp_agent")
+
+    # Exploration
+    def toggle_exploration(self, checked):
+        frontier_window_name = "exp_frontier"
+        detection_window_name = "exp_detection"
+        map_save_window_name = "exp_auto_save_map"
+
+        map_autosaver_command = f"""
+while true; do
+  cd && mkdir -p exp_maps/autosaved && cd exp_maps/autosaved && {ALL_WINDOW_COMMANDS["exp_save_map"]} 103
+  sleep 10
+done
+"""
+
+        if checked:
+            self.tmux.temporary_window(frontier_window_name, "sleep 5 && " + ALL_WINDOW_COMMANDS[frontier_window_name])
+            self.tmux.temporary_window(detection_window_name, ALL_WINDOW_COMMANDS[detection_window_name])
+
+            self.tmux.temporary_window(map_save_window_name, map_autosaver_command)
+        else:
+            self.tmux.kill_window(frontier_window_name)
+            self.tmux.kill_window(detection_window_name)
+
+            self.tmux.kill_window(map_save_window_name)
+
+    def lap_value_update(self, value):
+        # Update the label
+        self.exploration_slider_label.setText(f"Lap: {value}")
+        self.lap_number = value
+    
+    def save_exp_maps(self):
+        map_save_window_name = "exp_save_map"
+        command = f"cd && mkdir -p exp_maps/{self.lap_number} && cd exp_maps/{self.lap_number} && " + ALL_WINDOW_COMMANDS[map_save_window_name] + f" {self.lap_number}"
+        self.tmux.temporary_window(map_save_window_name, command)
+
+    # Navigation
+    def toggle_navigation(self, checked):
+        window_name = "nav_3d_to_2d"
+        if checked:
+            self.tmux.temporary_window(window_name, ALL_WINDOW_COMMANDS[window_name])
+        else:
+            self.tmux.kill_window(window_name)
+
+    def follow_path_command(self):
+        if not self.nav_3d_follow_path_client.wait_for_service(timeout_sec=1.0):
+            self.node.get_logger().info(
+                "service /navigation/follow_path not available, skipping command"
+            )
+        else:
+            req = SetBool.Request()
+            req.data = True
+            self.nav_3d_follow_path_client.call_async(req)
 
     def shutdown_plugin(self):
         self.node.destroy_node()
