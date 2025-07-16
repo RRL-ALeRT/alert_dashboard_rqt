@@ -36,14 +36,11 @@ MAX_IP = os.getenv("MAX_IP")
 SESSION_NAME = "spot_session"
 GEN3_IP = os.getenv("GEN3_IP")
 
-#
-
 ALL_WINDOW_COMMANDS = {
     # Robot
-    #"discovery": "fastdds discovery --server-id 0",
+    "discovery": "fastdds discovery --server-id 0",
     "estop": "ros2 run spot_driver_plus spot_estop.py",
     "spot_driver": "ros2 launch spot_driver_plus spot_launch.py",
-
     "kinova_python": "ros2 launch kortex_controller_py manipulator_launch.py",
     "kinova_driver": f"ros2 launch kortex_bringup gen3.launch.py robot_ip:={GEN3_IP} dof:=6 launch_rviz:=false",
     "kinova_moveit": "ros2 launch spot_gen3_moveit move_group.launch.py use_rviz:=false",
@@ -564,7 +561,7 @@ class EstopRqtPlugin(Plugin):
         if self.stop_slider.value() > 50 and not self.spot_driver_on:
             self.spot_driver_on = True
             self.stop_slider.setSliderPosition(100)  # Push slider to the right
-            #self.tmux.temporary_window("discovery", ALL_WINDOW_COMMANDS["discovery"])
+            self.tmux.temporary_window("discovery", ALL_WINDOW_COMMANDS["discovery"])
             self.tmux.temporary_window(window_name, ALL_WINDOW_COMMANDS[window_name])
         elif self.spot_driver_on:
             self.spot_driver_on = False

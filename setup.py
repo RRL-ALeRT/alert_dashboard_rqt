@@ -20,7 +20,6 @@ setup(
     maintainer_email="skpawar1305@gmail.com",
     description="rqt GUI plugin.",
     license="",
-    tests_require=["pytest"],
     entry_points={
     },
 )
