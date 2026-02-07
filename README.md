@@ -6,6 +6,7 @@ RQT plugins for ALeRT's Spot robot control and debugging.
 
 1. **Spot EStop RQT** - Emergency stop and robot control
 2. **Alert Dashboard RQT** - Debug console and process management
+3. **GStreamer Camera** - Display camera feeds from GStreamer pipelines with bounding box overlays
 
 ## Architecture
 

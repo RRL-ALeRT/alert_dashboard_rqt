@@ -17,7 +17,7 @@
 
   <class name="ALeRT Dashboard" type="alert_dashboard_rqt.alert_dashboard_rqt.DashboardRqtPlugin" base_class_type="rqt_gui_py::Plugin">
     <description>
-      A GUI plugin for emergency stop (estop) functionality.
+      A GUI plugin for ALeRT dashboard functionality.
     </description>
     <qtgui>
       <group>
@@ -26,8 +26,24 @@
         <statustip>Plugins related to RRL.</statustip>
       </group>
       <label>Dashboard</label>
-      <icon type="theme">process-stop</icon>
-      <statustip>A GUI plugin for debugging.</statustip>
+      <icon type="theme">view-dashboard</icon>
+      <statustip>A GUI plugin for ALeRT dashboard.</statustip>
+    </qtgui>
+  </class>
+
+  <class name="GStreamer Camera" type="alert_dashboard_rqt.gstreamer_camera_rqt.CameraRqtPlugin" base_class_type="rqt_gui_py::Plugin">
+    <description>
+      A GUI plugin for displaying camera feeds from GStreamer pipelines with overlay support.
+    </description>
+    <qtgui>
+      <group>
+        <label>ALeRT</label>
+        <icon type="theme">folder</icon>
+        <statustip>Plugins related to RRL.</statustip>
+      </group>
+      <label>GStreamer Camera</label>
+      <icon type="theme">camera-video</icon>
+      <statustip>Display camera feeds from GStreamer pipelines with bounding box overlays.</statustip>
     </qtgui>
   </class>
 </library>
