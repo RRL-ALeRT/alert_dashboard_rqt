@@ -18,7 +18,7 @@ class TmuxAPIClient:
     Drop-in replacement for TmuxSSHWrapper with same interface.
     """
     
-    def __init__(self, robot_ip: str, session_name: str, port: int = 8000, api_key: Optional[str] = None):
+    def __init__(self, robot_ip: str, session_name: str, port: int = 8000):
         """
         Initialize API client
         
@@ -26,12 +26,9 @@ class TmuxAPIClient:
             robot_ip: IP address of robot PC
             session_name: tmux session name (for compatibility, not used)
             port: API server port
-            api_key: Optional API key for authentication (or set TMUX_API_KEY env var)
         """
         self.base_url = f"http://{robot_ip}:{port}"
         self.session_name = session_name
-        self.api_key = api_key or os.getenv("TMUX_API_KEY")
-        self.headers = {"X-API-Key": self.api_key} if self.api_key else {}
         self.connected = False
         self.last_error = None  # Track last error for UI display
         self._reconnect_thread = None
@@ -111,7 +108,6 @@ class TmuxAPIClient:
             response = requests.post(
                 f"{self.base_url}/api/windows/{window_name}/start",
                 json={"command": command, "delay": delay},
-                headers=self.headers,
                 timeout=5
             )
             if response.status_code == 200:
@@ -140,7 +136,6 @@ class TmuxAPIClient:
         try:
             response = requests.delete(
                 f"{self.base_url}/api/windows/{window_name}",
-                headers=self.headers,
                 timeout=5
             )
             if response.status_code == 200:
@@ -191,7 +186,6 @@ class TmuxAPIClient:
         try:
             response = requests.get(
                 f"{self.base_url}/api/windows",
-                headers=self.headers,
                 timeout=2
             )
             if response.status_code == 200:

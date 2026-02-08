@@ -13,7 +13,7 @@ from typing import List, Optional
 from contextlib import asynccontextmanager
 from datetime import datetime, UTC
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 import libtmux
@@ -26,7 +26,6 @@ import libtmux
 class Config(BaseModel):
     """Server configuration with validation"""
     session_name: str = Field(default="spot_session", min_length=1)
-    api_key: Optional[str] = Field(default=None, min_length=8)
     log_level: str = Field(default="INFO")
     
     @field_validator('log_level')
@@ -42,7 +41,6 @@ class Config(BaseModel):
         """Load config from environment variables"""
         return cls(
             session_name=os.getenv("TMUX_SESSION_NAME", "spot_session"),
-            api_key=os.getenv("TMUX_API_KEY"),
             log_level=os.getenv("LOG_LEVEL", "INFO")
         )
 
@@ -107,20 +105,7 @@ class Metrics:
 metrics = Metrics()
 
 
-# ============================================================================
-# Authentication
-# ============================================================================
 
-async def verify_api_key(x_api_key: Optional[str] = Header(None)):
-    """Verify API key if configured"""
-    if config.api_key:
-        if not x_api_key:
-            logger.warning("Missing API key in request")
-            raise HTTPException(status_code=401, detail="API key required")
-        if x_api_key != config.api_key:
-            logger.warning(f"Invalid API key: {x_api_key[:8]}...")
-            raise HTTPException(status_code=403, detail="Invalid API key")
-    return True
 
 
 # ============================================================================
@@ -291,7 +276,7 @@ async def get_metrics():
     return MetricsResponse(**metrics.get_stats())
 
 
-@app.get("/api/windows", response_model=WindowListResponse, dependencies=[Depends(verify_api_key)])
+@app.get("/api/windows", response_model=WindowListResponse)
 async def list_windows():
     """List all windows in the session"""
     metrics.record_request()
@@ -324,7 +309,7 @@ async def list_windows():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/windows/{window_name}/status", response_model=WindowResponse, dependencies=[Depends(verify_api_key)])
+@app.get("/api/windows/{window_name}/status", response_model=WindowResponse)
 async def get_window(window_name: str):
     """Get status of a specific window"""
     metrics.record_request()
@@ -332,7 +317,7 @@ async def get_window(window_name: str):
     return get_window_status(window_name)
 
 
-@app.post("/api/windows/{window_name}/start", dependencies=[Depends(verify_api_key)])
+@app.post("/api/windows/{window_name}/start")
 async def start_window(window_name: str, request: StartWindowRequest):
     """Start a new window with the given command"""
     metrics.record_request()
@@ -369,7 +354,7 @@ async def start_window(window_name: str, request: StartWindowRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/windows/{window_name}", dependencies=[Depends(verify_api_key)])
+@app.delete("/api/windows/{window_name}")
 async def kill_window(window_name: str):
     """Kill a window"""
     metrics.record_request()
