@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 tmux API Client - Drop-in replacement for TmuxSSHWrapper
-Communicates with tmux API server via HTTP/WebSocket
+Communicates with tmux API server via HTTP REST API
 """
 
 import os
