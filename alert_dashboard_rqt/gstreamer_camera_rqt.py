@@ -24,6 +24,16 @@ except ImportError:
     HAS_VISION_MSGS = False
     print("Warning: vision_msgs not found. Bounding box overlay disabled.")
 
+# Try importing world_info_msgs for Polygons and Keypoints
+try:
+    from world_info_msgs.msg import BoundingPolygonArray, KeypointsArray
+    HAS_WORLD_INFO_MSGS = True
+except ImportError:
+    HAS_WORLD_INFO_MSGS = False
+    # print("Warning: world_info_msgs not found. Polygon and Keypoint overlays disabled.")
+
+import cv2
+
 
 
 class EnlargedImageWindow(QDialog):
@@ -176,8 +186,14 @@ class CameraRqtPlugin(Plugin):
         self.appsink = None
         
         # Bounding box data
-        self.bounding_boxes = []  # List of detections
+        # Bounding box data
+        self.bounding_box_map = {}  # Map of type -> list of detections
+        self.bounding_polygon_map = {} # Map of type -> list of polygons
+        self.keypoints_map = {} # Map of type -> list of keypoints
+        
         self.bb_subscriber = None
+        self.bp_subscriber = None
+        self.kp_subscriber = None
         
         # Current image for overlay
         self.current_pixmap = None
@@ -234,6 +250,22 @@ class CameraRqtPlugin(Plugin):
                     10
                 )
                 self.node.get_logger().info("Subscribed to /detections for bounding boxes")
+
+            # Subscribe to world_info_msgs topics if available
+            if HAS_WORLD_INFO_MSGS:
+                self.bp_subscriber = self.node.create_subscription(
+                    BoundingPolygonArray,
+                    "/bounding_polygons",
+                    self.bounding_polygon_callback,
+                    10
+                )
+                self.kp_subscriber = self.node.create_subscription(
+                    KeypointsArray,
+                    "/keypoints",
+                    self.keypoints_callback,
+                    10
+                )
+                self.node.get_logger().info("Subscribed to /bounding_polygons and /keypoints")
             
             # Pipeline started
 
@@ -253,9 +285,16 @@ class CameraRqtPlugin(Plugin):
                 self.appsink = None
             
             # Unsubscribe from bounding box topic
+            # Unsubscribe from topics
             if self.bb_subscriber:
                 self.node.destroy_subscription(self.bb_subscriber)
                 self.bb_subscriber = None
+            if self.bp_subscriber:
+                self.node.destroy_subscription(self.bp_subscriber)
+                self.bp_subscriber = None
+            if self.kp_subscriber:
+                self.node.destroy_subscription(self.kp_subscriber)
+                self.kp_subscriber = None
             
             self.image_label.setText("Camera stopped")
             # Pipeline stopped
@@ -276,15 +315,49 @@ class CameraRqtPlugin(Plugin):
             label = detection.results[0].hypothesis.class_id if detection.results else "unknown"
             confidence = detection.results[0].hypothesis.score if detection.results else 0.0
             
+            # Store as center coordinates to match C++ logic
             boxes.append({
-                'x': int(bbox.center.position.x - bbox.size_x / 2),
-                'y': int(bbox.center.position.y - bbox.size_y / 2),
+                'x': int(bbox.center.position.x),
+                'y': int(bbox.center.position.y),
                 'width': int(bbox.size_x),
                 'height': int(bbox.size_y),
                 'text': f"{confidence:.2f}:{label}",
-                'timestamp': msg.header.stamp.sec + msg.header.stamp.nanosec / 1e9
+                'time_second': msg.header.stamp.sec
             })
-        self.bounding_boxes = boxes
+        self.bounding_box_map["detections"] = boxes
+
+    def bounding_polygon_callback(self, msg):
+        """Callback for world_info_msgs BoundingPolygonArray."""
+        polygons = []
+        for bp in msg.array:
+            contour = []
+            for point in bp.array:
+                contour.append([int(point.x), int(point.y)])
+            
+            text = bp.name
+            if bp.confidence > 0:
+                text = f"{bp.confidence:.2f}:{bp.name}"
+
+            polygons.append({
+                'contour': np.array(contour, dtype=np.int32),
+                'text': text,
+                'time_second': msg.header.stamp.sec
+            })
+        self.bounding_polygon_map[msg.type] = polygons
+
+    def keypoints_callback(self, msg):
+        """Callback for world_info_msgs KeypointsArray."""
+        keypoints_list = []
+        for kp in msg.array:
+            points = []
+            for point in kp.array:
+                points.append((int(point.x), int(point.y)))
+            
+            keypoints_list.append({
+                'keypoints': points,
+                'time_second': msg.header.stamp.sec
+            })
+        self.keypoints_map[msg.type] = keypoints_list
     
     
     
@@ -351,44 +424,75 @@ class CameraRqtPlugin(Plugin):
 
     
     def display_image(self, frame_data, width, height):
-        """Display frame in Qt label with bounding box overlays."""
+        """Display frame in Qt label with bounding box overlays using OpenCV."""
         try:
+            # We already have frame_data as numpy array (RGB)
+            # Make a writeable copy for OpenCV drawing if not already
+            if not frame_data.flags.writeable:
+                frame_data = frame_data.copy()
+            
+            conversion_mat_ = frame_data
+            current_time_sec = self.node.get_clock().now().to_msg().sec
+
+            # Draw bounding boxes on the 'conversion_mat_' using OpenCV
+            for _, bb_array in self.bounding_box_map.items():
+                for bb in bb_array:
+                    # Ignore if bb data is older than 2 seconds
+                    if current_time_sec > bb['time_second'] + 2:
+                        continue
+
+                    # Define the bounding box coordinates
+                    # bb['x'], bb['y'] are center coordinates
+                    x_tl = int(bb['x'] - 0.5 * bb['width'])
+                    y_tl = int(bb['y'] - 0.5 * bb['height'])
+                    
+                    # Draw the bounding box using OpenCV
+                    # distinct color (255, 0, 0) - In RGB this is Red. In BGR logic it would be Blue.
+                    # Using values from C++ snippet.
+                    cv2.rectangle(conversion_mat_, (x_tl, y_tl), (x_tl + bb['width'], y_tl + bb['height']), (255, 0, 0), 4)
+
+                    # Define the text position within the bounding box
+                    text_pos = (x_tl + 5, y_tl - 5)
+
+                    # Draw the text inside the bounding box using OpenCV
+                    cv2.putText(conversion_mat_, bb['text'], text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+            # Draw polygon on the 'conversion_mat_' using OpenCV
+            for _, bp_array in self.bounding_polygon_map.items():
+                for bp in bp_array:
+                    # Ignore if bp data is older than 2 seconds
+                    if current_time_sec > bp['time_second'] + 2:
+                        continue
+
+                    pts = bp['contour']
+                    # cv2.polylines expects a list of arrays
+                    cv2.polylines(conversion_mat_, [pts], True, (255, 0, 0), 1)
+
+                    # Draw the text inside the polygon using OpenCV
+                    # Use first point of contour for text position
+                    text_pos = tuple(pts[0])
+                    cv2.putText(conversion_mat_, bp['text'], text_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+            # Draw keypoints on the 'conversion_mat_' using OpenCV
+            for _, kp_array in self.keypoints_map.items():
+                for kp in kp_array:
+                    # Ignore if kp data is older than 2 seconds
+                    if current_time_sec > kp['time_second'] + 2:
+                        continue
+
+                    # Draw each point as a visible marker
+                    for point in kp['keypoints']:
+                        cv2.drawMarker(conversion_mat_, point, (255, 0, 0), cv2.MARKER_CROSS, 20, 2, cv2.LINE_AA)
+
+            
             bytes_per_line = 3 * width
             
             # Convert to QImage
+            # frame_data is modified in place (conversion_mat_)
             q_image = QImage(frame_data.data, width, height, bytes_per_line, QImage.Format_RGB888)
             
             # Create pixmap
             pixmap = QPixmap.fromImage(q_image)
-            
-            # Draw bounding boxes
-            painter = QPainter(pixmap)
-            current_time = self.node.get_clock().now().nanoseconds / 1e9
-            for bb in self.bounding_boxes:
-                # Skip if data is older than 2 seconds
-                if current_time - bb['timestamp'] > 2:
-                    continue
-                
-                # Draw rectangle
-                pen = QPen(QColor(0, 255, 0))  # Green
-                pen.setWidth(4)
-                painter.setPen(pen)
-                rect = QRect(bb['x'], bb['y'], bb['width'], bb['height'])
-                painter.drawRect(rect)
-                
-                # Draw text label with background
-                painter.setFont(QFont("Arial", 14, QFont.Bold))
-                text = bb['text']
-                text_rect = QRect(bb['x'] + 5, bb['y'] - 25, len(text) * 10, 20)
-                
-                # Draw background
-                painter.fillRect(text_rect, QColor(0, 0, 0, 150))
-                
-                # Draw text
-                painter.setPen(QColor(255, 255, 255))  # White
-                painter.drawText(QPoint(bb['x'] + 5, bb['y'] - 10), text)
-            
-            painter.end()
             
             # Store current pixmap for enlarged view
             self.current_pixmap = pixmap
