@@ -40,17 +40,19 @@ GEN3_IP = os.getenv("GEN3_IP")
 
 ALL_WINDOW_COMMANDS = {
     # Robot
-    #"discovery": "fastdds discovery --server-id 0",
+    "discovery": "fastdds discovery --server-id 0",
     "estop": "ros2 run spot_driver_plus spot_estop.py",
     "spot_driver": "ros2 launch spot_driver_plus spot_launch.py",
 
     "kinova_python": "ros2 launch kortex_controller_py manipulator_launch.py",
     "kinova_driver": f"ros2 launch kortex_bringup gen3.launch.py robot_ip:={GEN3_IP} dof:=6 launch_rviz:=false",
     "kinova_moveit": "ros2 launch spot_gen3_moveit move_group.launch.py use_rviz:=false",
-    "kinova_vision": "ros2 launch kinova_vision rgbd_launch.py",
+    "kinova_vision": "ros2 launch kinova_vision kinova_vision.launch.py",
     "realsenses": "ros2 launch rrl_launchers realsenses_launch.py",
+    "livox_driver": "ros2 launch livox_ros_driver2 msg_MID360_launch.py",
+
     # Mobility
-    "octo_realsenses": "ros2 launch octomap_server octomap_realsenses_launch.py",
+    "octo_livox": "ros2 launch octomap_server octomap_livox_launch.py",
     "octo_spot": "ros2 launch octomap_server octomap_spot_launch.py",
     "frame_runner": "ros2 launch gpp_action_examples frame_runner_launch.py",
     # Dexterity
@@ -564,7 +566,7 @@ class EstopRqtPlugin(Plugin):
         if self.stop_slider.value() > 50 and not self.spot_driver_on:
             self.spot_driver_on = True
             self.stop_slider.setSliderPosition(100)  # Push slider to the right
-            #self.tmux.temporary_window("discovery", ALL_WINDOW_COMMANDS["discovery"])
+            self.tmux.temporary_window("discovery", ALL_WINDOW_COMMANDS["discovery"])
             self.tmux.temporary_window(window_name, ALL_WINDOW_COMMANDS[window_name])
         elif self.spot_driver_on:
             self.spot_driver_on = False
@@ -588,18 +590,18 @@ class EstopRqtPlugin(Plugin):
 
     def run_ssh_command(self):
         self.tmux.temporary_window(
-            "kinova_python", ALL_WINDOW_COMMANDS["kinova_python"], 1
+            "kinova_driver", ALL_WINDOW_COMMANDS["kinova_driver"], 1
         )
         self.tmux.temporary_window(
             "kinova_vision", ALL_WINDOW_COMMANDS["kinova_vision"], 2
         )
 
-        self.tmux.temporary_window("realsenses", ALL_WINDOW_COMMANDS["realsenses"], 3)
-        self.tmux.temporary_window("octo_spot", ALL_WINDOW_COMMANDS["octo_spot"], 4)
-        self.tmux.temporary_window("realsenses", ALL_WINDOW_COMMANDS["realsenses"], 5)
+        # self.tmux.temporary_window("realsenses", ALL_WINDOW_COMMANDS["realsenses"], 3)
+        #self.tmux.temporary_window("octo_spot", ALL_WINDOW_COMMANDS["octo_spot"], 4)
+        # self.tmux.temporary_window("realsenses", ALL_WINDOW_COMMANDS["realsenses"], 4)
 
         self.tmux.temporary_window(
-            "spot_driver", ALL_WINDOW_COMMANDS["spot_driver"], 6
+            "spot_driver", ALL_WINDOW_COMMANDS["spot_driver"], 5
         )
 
 

@@ -26,19 +26,22 @@ GEN3_IP = os.getenv("GEN3_IP")
 
 ALL_WINDOW_COMMANDS = {
     # Robot
-    "spot_driver": "ros2 launch go2_robot_sdk robot.launch.py",
+    "spot_driver": "ros2 launch spot_driver_plus spot_launch.py",
     "kinova_python": "ros2 launch kortex_controller_py manipulator_launch.py",
     "kinova_driver": f"ros2 launch kortex_bringup gen3.launch.py robot_ip:={GEN3_IP} dof:=6 launch_rviz:=false",
-    "kinova_moveit": "ros2 launch spot_gen3_moveit move_group.launch.py use_rviz:=false",
-    "kinova_vision": "ros2 launch kinova_vision rgbd_launch.py",
+    "kinova_moveit": "xvfb-run -a ros2 launch gen3_140_moveit_config move_group.launch.py ",
+    "kinova_vision": "ros2 launch kinova_vision kinova_vision.launch.py",
     "realsenses": "ros2 launch rrl_launchers realsenses_launch.py",
+    "livox_driver": "ros2 launch livox_ros_driver2 msg_MID360_launch.py",
     # Mobility
-    "octo_realsenses": "ros2 launch octomap_server octomap_realsenses_launch.py",
+    "octo_livox": "ros2 launch octomap_server octomap_livox_launch.py",
     "octo_spot": "ros2 launch octomap_server octomap_spot_launch.py",
+    "octo_realsense": "ros2 launch octomap_server octomap_realsenses_launch.py",
     "frame_runner": "ros2 launch gpp_action_examples frame_runner_launch.py",
     # Dexterity
     "audio_capture": "ros2 run audio_capture audio_capture_node --ros-args -p format:=wave -r __ns:=/nuc",
-    "audio_play": "ros2 run audio_play audio_play_node --ros-args -p format:=wave -r __ns:=/operator",
+    #"audio_play": "ros2 run audio_play audio_play_node --ros-args -p format:=wave -r __ns:=/operator",
+    "audio_play": "ffplay -nodisp /home/max1/Desktop/single-dog-woof-sound.mp3 -v 0 -loop 3 -autoexit",
     "thermal_cam": "ros2 launch seek_thermal_ros thermal_publisher_launch.py",
     "hazmat_detection": "ros2 run spot_driver_plus kinova_yolov8_openvino.py",
     "motion_detection": "ros2 run spot_driver_plus motion_detection.py",
