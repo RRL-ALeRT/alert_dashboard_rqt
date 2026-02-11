@@ -17,45 +17,16 @@ from python_qt_binding.QtWidgets import (
 
 from rqt_gui.main import Main
 
-from alert_dashboard_rqt.tmux_utils import TmuxSSHWrapper, TmuxLocalWrapper
+# Import shared window commands
+from alert_dashboard_rqt.window_commands import ALL_WINDOW_COMMANDS
+
 
 MAX_USER = os.getenv("MAX_USER")
-MAX_IP = os.getenv("MAX_IP")
+MAX_IP = os.getenv("MAX_IP", "localhost")  # Default to localhost for local testing
 SESSION_NAME = "spot_session"
-GEN3_IP = os.getenv("GEN3_IP")
-
-ALL_WINDOW_COMMANDS = {
-    # Robot
-    "spot_driver": "ros2 launch spot_driver_plus spot_launch.py",
-    "kinova_python": "ros2 launch kortex_controller_py manipulator_launch.py",
-    "kinova_driver": f"ros2 launch kortex_bringup gen3.launch.py robot_ip:={GEN3_IP} dof:=6 launch_rviz:=false",
-    "kinova_moveit": "xvfb-run -a ros2 launch gen3_140_moveit_config move_group.launch.py ",
-    "kinova_vision": "ros2 launch kinova_vision kinova_vision.launch.py",
-    "realsenses": "ros2 launch rrl_launchers realsenses_launch.py",
-    "livox_driver": "ros2 launch livox_ros_driver2 msg_MID360_launch.py",
-    # Mobility
-    "octo_livox": "ros2 launch octomap_server octomap_livox_launch.py",
-    "octo_spot": "ros2 launch octomap_server octomap_spot_launch.py",
-    "octo_realsense": "ros2 launch octomap_server octomap_realsenses_launch.py",
-    "frame_runner": "ros2 launch gpp_action_examples frame_runner_launch.py",
-    # Dexterity
-    "audio_capture": "ros2 run audio_capture audio_capture_node --ros-args -p format:=wave -r __ns:=/nuc",
-    #"audio_play": "ros2 run audio_play audio_play_node --ros-args -p format:=wave -r __ns:=/operator",
-    "audio_play": "ffplay -nodisp /home/max1/Desktop/single-dog-woof-sound.mp3 -v 0 -loop 3 -autoexit",
-    "thermal_cam": "ros2 launch seek_thermal_ros thermal_publisher_launch.py",
-    "hazmat_detection": "ros2 run spot_driver_plus kinova_yolov8_openvino.py",
-    "motion_detection": "ros2 run spot_driver_plus motion_detection.py",
-    # Additional
-    "blocksworld_scan": "ros2 run world_info aruco_node",
-    "blocksworld_gpp_wrapper": "ros2 run webots_spot gpp_blocksworld_server",
-    "blocksworld_gpp_agent": "ros2 launch webots_spot blocksworld_launch.py",
-}
 
 if MAX_USER is None:
     print("MAX_USER environment variable is not set.")
-    exit()
-if MAX_IP is None:
-    print("MAX_IP environment variable is not set.")
     exit()
 
 
@@ -86,6 +57,11 @@ class DashboardRqtPlugin(Plugin):
             self.bnl[f"{button}_push"] = self._widget.findChild(
                 QPushButton, f"{button}_push"
             )
+            
+            # Skip if button doesn't exist in UI
+            if self.bnl[f"{button}_push"] is None:
+                continue
+                
             self.bnl[f"{button}_push"].toggled.connect(
                 lambda checked, btn=button: self.button_push_cb(btn, checked)
             )
@@ -101,31 +77,90 @@ class DashboardRqtPlugin(Plugin):
                 QLabel, f"{button}_label"
             )
 
-        self.expected_active_windows = []
+        # Initialize with all windows expected to be active (toggles on by default)
+        # Only include windows that have UI buttons
+        self.expected_active_windows = [
+            btn for btn in ALL_WINDOW_COMMANDS.keys() 
+            if self.bnl.get(f"{btn}_push") is not None
+        ]
+        
+        # Set all toggles to checked by default
+        for button in self.expected_active_windows:
+            self.bnl[f"{button}_push"].setChecked(True)
+        
         self.node.create_timer(2, self.check_expected_windows)
 
-        self.tmux = TmuxSSHWrapper(MAX_USER, MAX_IP, SESSION_NAME)
-        # self.tmux = TmuxLocalWrapper(SESSION_NAME)
+        # Use API client instead of SSH
+        from alert_dashboard_rqt.tmux_api_client import TmuxAPIClient
+        self.tmux = TmuxAPIClient(MAX_IP, SESSION_NAME)
+        
         self.tmux.new_session()
 
     def check_expected_windows(self):
-        active_windows = self.tmux.get_active_windows()
+        # Check connection status first
+        if not self.tmux.connected:
+            # Show disconnected status for all expected windows
+            error_msg = f"⚠️ Disconnected"
+            if self.tmux.last_error:
+                error_msg += f": {self.tmux.last_error}"
+            
+            for window in self.expected_active_windows:
+                self.bnl[f"{window}_label"].setText(error_msg)
+                self.bnl[f"{window}_label"].setStyleSheet("color: orange")
+            return
+        
+        # Get window list with process status
+        try:
+            import requests
+            response = requests.get(
+                f"{self.tmux.base_url}/api/windows",
+                headers=self.tmux.headers,
+                timeout=2
+            )
+            if response.status_code != 200:
+                return
+            
+            data = response.json()
+            windows_status = {w["name"]: w for w in data.get("windows", [])}
+        except Exception as e:
+            print(f"Failed to get window status: {e}")
+            return
 
-        # Red radio button if any of the windows closed unexpectedly
-        for expected_window in self.expected_active_windows:
-            if expected_window in active_windows:
-                self.bnl[f"{expected_window}_label"].setText("Running")
+        # Check each expected window
+        for expected_window in self.expected_active_windows[:]:  # Use slice to iterate over copy
+            window_info = windows_status.get(expected_window)
+            
+            if window_info is None:
+                # Window doesn't exist at all - uncheck toggle and clear label
+                self.bnl[f"{expected_window}_push"].setChecked(False)
+                self.bnl[f"{expected_window}_label"].setText("")
+                self.bnl[f"{expected_window}_label"].setStyleSheet("")
+                # Remove from expected list
+                self.expected_active_windows.remove(expected_window)
+            
+            elif not window_info.get("has_process", False):
+                # Window exists but no process running (CRASHED)
+                # Only update if not already showing crash status
+                if self.bnl[f"{expected_window}_label"].text() != "💥 CRASHED":
+                    self.bnl[f"{expected_window}_label"].setText("💥 CRASHED")
+                    self.bnl[f"{expected_window}_label"].setStyleSheet(
+                        "color: red; font-weight: bold; background-color: yellow"
+                    )
+            
             else:
-                self.bnl[f"{expected_window}_label"].setText("Stopped")
+                # Window exists AND process is running
+                self.bnl[f"{expected_window}_label"].setText("✓ Running")
+                self.bnl[f"{expected_window}_label"].setStyleSheet("color: green")
 
         # Auto press buttons if the program windows are already running
-        for active_window in active_windows:
-            if active_window not in ALL_WINDOW_COMMANDS.keys():
+        for window_name, window_info in windows_status.items():
+            if window_name not in ALL_WINDOW_COMMANDS.keys():
                 continue
 
-            if active_window not in self.expected_active_windows:
-                self.expected_active_windows.append(active_window)
-                self.bnl[f"{active_window}_push"].setChecked(True)
+            if window_name not in self.expected_active_windows and window_info.get("has_process", False):
+                self.expected_active_windows.append(window_name)
+                self.bnl[f"{window_name}_push"].setChecked(True)
+
 
     def button_push_cb(self, button, checked):
         window_name = button
@@ -141,7 +176,8 @@ class DashboardRqtPlugin(Plugin):
         else:
             # Kill window and remove the window_name from expected_active_windows
             self.tmux.kill_window(window_name)
-            self.expected_active_windows.remove(window_name)
+            if window_name in self.expected_active_windows:
+                self.expected_active_windows.remove(window_name)
             self.bnl[f"{window_name}_label"].setText("")
 
     def toolbutton_cb(self, button, checked):

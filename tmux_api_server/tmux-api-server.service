@@ -1,0 +1,17 @@
+[Unit]
+Description=tmux API Server for Robot Control
+After=network.target
+
+[Service]
+Type=simple
+User=max
+WorkingDirectory=/home/max1/spot_ws/src/alert_dashboard_rqt/tmux_api_server
+Environment="TMUX_SESSION_NAME=spot_session"
+ExecStart=/usr/bin/python3 /home/max1/spot_ws/src/alert_dashboard_rqt/tmux_api_server/main.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

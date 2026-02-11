@@ -10,7 +10,10 @@ from rclpy.qos import QoSProfile
 
 from std_msgs.msg import String
 from std_srvs.srv import Empty, Trigger, SetBool
-from spot_msgs.msg import BatteryStateArray
+try:
+    from spot_msgs.msg import BatteryStateArray
+except ImportError:
+    BatteryStateArray = None
 
 from rqt_gui_py.plugin import Plugin
 from python_qt_binding import loadUi
@@ -29,48 +32,12 @@ from python_qt_binding.QtWidgets import (
 from rqt_gui.main import Main
 
 from alert_dashboard_rqt.moveit_action_client import MoveGroupActionClient
-from alert_dashboard_rqt.tmux_utils import TmuxSSHWrapper, TmuxLocalWrapper
+# Import shared window commands
+from alert_dashboard_rqt.window_commands import ALL_WINDOW_COMMANDS
 
 MAX_USER = os.getenv("MAX_USER")
-MAX_IP = os.getenv("MAX_IP")
+MAX_IP = os.getenv("MAX_IP", "localhost")  # Default to localhost for local testing
 SESSION_NAME = "spot_session"
-GEN3_IP = os.getenv("GEN3_IP")
-
-#
-
-ALL_WINDOW_COMMANDS = {
-    # Robot
-    "discovery": "fastdds discovery --server-id 0",
-    "estop": "ros2 run spot_driver_plus spot_estop.py",
-    "spot_driver": "ros2 launch spot_driver_plus spot_launch.py",
-
-    "kinova_python": "ros2 launch kortex_controller_py manipulator_launch.py",
-    "kinova_driver": f"ros2 launch kortex_bringup gen3.launch.py robot_ip:={GEN3_IP} dof:=6 launch_rviz:=false",
-    "kinova_moveit": "ros2 launch spot_gen3_moveit move_group.launch.py use_rviz:=false",
-    "kinova_vision": "ros2 launch kinova_vision kinova_vision.launch.py",
-    "realsenses": "ros2 launch rrl_launchers realsenses_launch.py",
-    "livox_driver": "ros2 launch livox_ros_driver2 msg_MID360_launch.py",
-
-    # Mobility
-    "octo_livox": "ros2 launch octomap_server octomap_livox_launch.py",
-    "octo_spot": "ros2 launch octomap_server octomap_spot_launch.py",
-    "frame_runner": "ros2 launch gpp_action_examples frame_runner_launch.py",
-    # Dexterity
-    "audio_capture": "ros2 run audio_capture audio_capture_node --ros-args -p format:=wave -r __ns:=/nuc",
-    "audio_play": "ros2 run audio_play audio_play_node --ros-args -p format:=wave -r __ns:=/operator",
-    "thermal_cam": "ros2 launch seek_thermal_ros thermal_publisher_launch.py",
-    "hazmat_detection": "ros2 run spot_driver_plus kinova_yolov8_openvino.py",
-    # Additional
-    "blocksworld_scan": "ros2 run world_info aruco_node",
-    "blocksworld_gpp_wrapper": "ros2 run webots_spot gpp_blocksworld_server",
-    "blocksworld_gpp_agent": "ros2 launch webots_spot blocksworld_launch.py",
-    # Exploration
-    "exp_frontier": "ros2 run rrt_exploration frontier_opencv_detector.py",
-    "exp_detection": "ros2 launch rrl_launchers exp_mapping_launch.py",
-    "exp_save_map": "ros2 run hector_geotiff geotiff_saver",
-    # Navigation
-    "nav_3d_to_2d": "ros2 run spot_driver_plus plan_3d_path.py"
-}
 
 if MAX_IP is None:
     print("MAX_IP environment variable is not set.")
@@ -92,9 +59,10 @@ class EstopRqtPlugin(Plugin):
         )
 
         # Create the subscriber for status updates
-        self.node.create_subscription(
-            BatteryStateArray, "/status/battery_states", self.status_callback, 1
-        )
+        if BatteryStateArray is not None:
+            self.node.create_subscription(
+                BatteryStateArray, "/status/battery_states", self.status_callback, 1
+            )
 
         # Create service clients
         self.map_frame_reset_client = self.node.create_client(
@@ -196,6 +164,11 @@ class EstopRqtPlugin(Plugin):
         self.status_label = QLabel("Remaining: Unknown")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("font: bold 16px")
+        
+        # Create label for estop window status
+        self.estop_status_label = QLabel("")
+        self.estop_status_label.setAlignment(Qt.AlignCenter)
+        self.estop_status_label.setStyleSheet("font: bold 14px")
 
         first_row_buttons = QHBoxLayout()
         first_row_buttons.addWidget(stop_label)
@@ -205,6 +178,7 @@ class EstopRqtPlugin(Plugin):
         second_row_buttons.addWidget(drivers_button)
 
         first_tab_layout.addLayout(first_row_buttons)
+        first_tab_layout.addWidget(self.estop_status_label)  # Add status above battery info
         first_tab_layout.addLayout(second_row_buttons)
         first_tab_layout.addWidget(self.status_label)
 
@@ -217,7 +191,17 @@ class EstopRqtPlugin(Plugin):
         self.toggle_button.setStyleSheet(
             "background-color: transparent; font: bold 15px; border-width: 5px; border-radius: 15px; padding: 15px"
         )
-        second_tab_layout.addWidget(self.toggle_button)
+        
+        # Add status label for frame_runner
+        self.frame_runner_status_label = QLabel("")
+        self.frame_runner_status_label.setAlignment(Qt.AlignCenter)
+        self.frame_runner_status_label.setStyleSheet("font: bold 12px")
+        
+        frame_runner_layout = QVBoxLayout()
+        frame_runner_layout.addWidget(self.toggle_button)
+        frame_runner_layout.addWidget(self.frame_runner_status_label)
+        
+        second_tab_layout.addLayout(frame_runner_layout)
 
         hazmat_button = QPushButton("Hazmat")
         hazmat_button.clicked.connect(self.hazmat_command)
@@ -483,9 +467,98 @@ class EstopRqtPlugin(Plugin):
         self.left_value = 0
         self.right_value = 0
 
-        self.tmux = TmuxSSHWrapper(MAX_USER, MAX_IP, SESSION_NAME)
-        # self.tmux = TmuxLocalWrapper(SESSION_NAME)
+        # Use API client instead of SSH
+        from alert_dashboard_rqt.tmux_api_client import TmuxAPIClient
+        self.tmux = TmuxAPIClient(MAX_IP, SESSION_NAME)
         self.tmux.new_session()
+        
+        # Add timer to check estop status and reset slider if needed
+        self.node.create_timer(2, self.check_estop_status)
+
+    def check_estop_status(self):
+            """Check if estop and frame_runner windows are running and sync UI state"""
+            if not self.tmux.connected:
+                self.estop_status_label.setText("⚠️ Disconnected from API")
+                self.estop_status_label.setStyleSheet("color: orange; font: bold 14px")
+                self.frame_runner_status_label.setText("⚠️ Disconnected")
+                self.frame_runner_status_label.setStyleSheet("color: orange; font: bold 12px")
+                return
+            
+            try:
+                import requests
+                response = requests.get(
+                    f"{self.tmux.base_url}/api/windows",
+                    headers=self.tmux.headers,
+                    timeout=2
+                )
+                if response.status_code != 200:
+                    self.estop_status_label.setText(f"⚠️ API Error: {response.status_code}")
+                    self.estop_status_label.setStyleSheet("color: orange; font: bold 14px")
+                    self.frame_runner_status_label.setText(f"⚠️ API Error")
+                    self.frame_runner_status_label.setStyleSheet("color: orange; font: bold 12px")
+                    return
+                
+                data = response.json()
+                windows_status = {w["name"]: w for w in data.get("windows", [])}
+                
+                # Check estop window
+                estop_window = windows_status.get("estop")
+                
+                if estop_window is None:
+                    # Window doesn't exist - Reset slider
+                    if self.spot_driver_on:
+                        self.spot_driver_on = False
+                        self.stop_slider.setSliderPosition(0)
+                    
+                    self.estop_status_label.setText("")  # Not started
+                    self.estop_status_label.setStyleSheet("")
+
+                elif not estop_window.get("has_process", False):
+                    # Window exists but crashed - KEEP session alive (don't reset slider)
+                    self.estop_status_label.setText("💥 E-Stop CRASHED")
+                    self.estop_status_label.setStyleSheet("color: red; font-weight: bold; background-color: yellow; font: bold 14px; padding: 5px")
+                    
+                    # Ensure slider stays at 100 to reflect "Session Active" despite crash
+                    if self.spot_driver_on and self.stop_slider.value() != 100:
+                        self.stop_slider.setSliderPosition(100)
+
+                else:
+                    # Estop is running normally - ensure slider is at 100 and flag is set
+                    if not self.spot_driver_on:
+                        self.spot_driver_on = True
+                        self.stop_slider.setSliderPosition(100)
+                    elif self.stop_slider.value() != 100:
+                        self.stop_slider.setSliderPosition(100)
+                    
+                    # Update status label
+                    self.estop_status_label.setText("✓ E-Stop Running")
+                    self.estop_status_label.setStyleSheet("color: green; font: bold 14px")
+                
+                # Check frame_runner window
+                frame_runner_window = windows_status.get("frame_runner")
+                
+                if frame_runner_window is None:
+                    # Window doesn't exist - uncheck toggle if checked
+                    if self.toggle_button.isChecked():
+                        self.toggle_button.setChecked(False)
+                    self.frame_runner_status_label.setText("")
+                    self.frame_runner_status_label.setStyleSheet("")
+                elif not frame_runner_window.get("has_process", False):
+                    # Window exists but crashed
+                    self.frame_runner_status_label.setText("💥 CRASHED")
+                    self.frame_runner_status_label.setStyleSheet("color: red; font-weight: bold; background-color: yellow; font: bold 12px; padding: 3px")
+                else:
+                    # Window is running
+                    if not self.toggle_button.isChecked():
+                        self.toggle_button.setChecked(True)
+                    self.frame_runner_status_label.setText("✓ Running")
+                    self.frame_runner_status_label.setStyleSheet("color: green; font: bold 12px")
+                    
+            except Exception as e:
+                self.estop_status_label.setText(f"⚠️ Error: {str(e)[:50]}")
+                self.estop_status_label.setStyleSheet("color: orange; font: bold 14px")
+                self.frame_runner_status_label.setText("⚠️ Error")
+                self.frame_runner_status_label.setStyleSheet("color: orange; font: bold 12px")
 
     def toggle_frame_runner(self, checked):
         window_name = "frame_runner"
@@ -563,15 +636,17 @@ class EstopRqtPlugin(Plugin):
 
     def stop_slider_released(self):
         window_name = "estop"
+        discovery_window_name = "discovery"
         if self.stop_slider.value() > 50 and not self.spot_driver_on:
             self.spot_driver_on = True
             self.stop_slider.setSliderPosition(100)  # Push slider to the right
-            self.tmux.temporary_window("discovery", ALL_WINDOW_COMMANDS["discovery"])
+            self.tmux.temporary_window(discovery_window_name, ALL_WINDOW_COMMANDS[discovery_window_name])
             self.tmux.temporary_window(window_name, ALL_WINDOW_COMMANDS[window_name])
         elif self.spot_driver_on:
             self.spot_driver_on = False
             self.stop_slider.setSliderPosition(0)  # Push slider to the left
             self.tmux.kill_window(window_name)
+            self.tmux.kill_window(discovery_window_name)
         else:
             self.stop_slider.setSliderPosition(0)  # Push slider to the left
 
