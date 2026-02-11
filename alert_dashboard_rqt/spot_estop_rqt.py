@@ -636,15 +636,17 @@ class EstopRqtPlugin(Plugin):
 
     def stop_slider_released(self):
         window_name = "estop"
+        discovery_window_name = "discovery"
         if self.stop_slider.value() > 50 and not self.spot_driver_on:
             self.spot_driver_on = True
             self.stop_slider.setSliderPosition(100)  # Push slider to the right
-            #self.tmux.temporary_window("discovery", ALL_WINDOW_COMMANDS["discovery"])
+            self.tmux.temporary_window(discovery_window_name, ALL_WINDOW_COMMANDS[discovery_window_name])
             self.tmux.temporary_window(window_name, ALL_WINDOW_COMMANDS[window_name])
         elif self.spot_driver_on:
             self.spot_driver_on = False
             self.stop_slider.setSliderPosition(0)  # Push slider to the left
             self.tmux.kill_window(window_name)
+            self.tmux.kill_window(discovery_window_name)
         else:
             self.stop_slider.setSliderPosition(0)  # Push slider to the left
 

@@ -12,6 +12,7 @@ GEN3_IP = os.getenv("GEN3_IP")
 # All window commands - shared between alert_dashboard_rqt and spot_estop_rqt
 ALL_WINDOW_COMMANDS = {
     # Robot
+    "discovery": "fastdds discovery --server-id 0",
     "estop": "ros2 run spot_driver_plus spot_estop.py",
     "spot_driver": "ros2 launch spot_driver_plus spot_launch.py",
 
