@@ -130,7 +130,7 @@
                   "type": "repr"
                 },
                 "topic": {
-                  "repr": "'/rs_front/color/image_raw'",
+                  "repr": "'/thermalImage'",
                   "type": "repr"
                 },
                 "zoom1": {
