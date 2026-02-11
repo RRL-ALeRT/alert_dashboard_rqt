@@ -11,7 +11,14 @@ import sys
 import time
 from typing import List, Optional
 from contextlib import asynccontextmanager
-from datetime import datetime, UTC
+
+from datetime import datetime, timezone
+
+# Add compatibility for Python < 3.11 (where UTC was introduced to datetime)
+try:
+    from datetime import UTC
+except ImportError:
+    UTC = timezone.utc
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
