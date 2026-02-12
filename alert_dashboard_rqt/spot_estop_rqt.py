@@ -665,18 +665,18 @@ class EstopRqtPlugin(Plugin):
 
     def run_ssh_command(self):
         self.tmux.temporary_window(
-            "kinova_python", ALL_WINDOW_COMMANDS["kinova_python"], 1
+            "kinova_driver", ALL_WINDOW_COMMANDS["kinova_driver"], 1
         )
         self.tmux.temporary_window(
             "kinova_vision", ALL_WINDOW_COMMANDS["kinova_vision"], 2
         )
 
-        self.tmux.temporary_window("realsenses", ALL_WINDOW_COMMANDS["realsenses"], 3)
-        self.tmux.temporary_window("octo_spot", ALL_WINDOW_COMMANDS["octo_spot"], 4)
-        self.tmux.temporary_window("realsenses", ALL_WINDOW_COMMANDS["realsenses"], 5)
+        # self.tmux.temporary_window("realsenses", ALL_WINDOW_COMMANDS["realsenses"], 3)
+        #self.tmux.temporary_window("octo_spot", ALL_WINDOW_COMMANDS["octo_spot"], 4)
+        # self.tmux.temporary_window("realsenses", ALL_WINDOW_COMMANDS["realsenses"], 4)
 
         self.tmux.temporary_window(
-            "spot_driver", ALL_WINDOW_COMMANDS["spot_driver"], 6
+            "spot_driver", ALL_WINDOW_COMMANDS["spot_driver"], 5
         )
 
 
