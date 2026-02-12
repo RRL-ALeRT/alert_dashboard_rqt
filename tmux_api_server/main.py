@@ -391,6 +391,35 @@ async def kill_window(window_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/windows/{window_name}/select")
+async def select_window(window_name: str):
+    """Select/focus a window"""
+    metrics.record_request()
+    try:
+        session = get_session(create_if_missing=False)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        window = session.find_where({"window_name": window_name})
+        if not window:
+            logger.warning(f"Window not found for selection: {window_name}")
+            raise HTTPException(status_code=404, detail="Window not found")
+        
+        logger.info(f"Selecting window: {window_name}")
+        window.select_window()
+        
+        return JSONResponse(
+            status_code=200,
+            content={"success": True, "message": "Window selected", "window": window_name}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        metrics.record_error()
+        logger.error(f"Failed to select window {window_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level=config.log_level.lower())

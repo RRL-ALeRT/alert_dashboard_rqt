@@ -170,8 +170,22 @@ class TmuxAPIClient:
         print(f"⚠️  window_cancel not implemented for API")
     
     def window_select(self, window_name: str):
-        """Select window (no-op for API, tmux handles this)"""
-        pass
+        """
+        Select/focus a window
+        
+        Args:
+            window_name: Name of the window to select
+        """
+        if not self.connected:
+            return
+            
+        try:
+            requests.post(
+                f"{self.base_url}/api/windows/{window_name}/select",
+                timeout=2
+            )
+        except Exception as e:
+            print(f"Error selecting window {window_name}: {e}")
     
     def get_active_windows(self) -> List[str]:
         """
