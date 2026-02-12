@@ -19,12 +19,15 @@ ALL_WINDOW_COMMANDS = {
     "kinova_python": "ros2 launch kortex_controller_py manipulator_launch.py",
     "kinova_driver": f"ros2 launch kortex_bringup gen3.launch.py robot_ip:={GEN3_IP} dof:=6 launch_rviz:=false",
     "kinova_moveit": "ros2 launch spot_gen3_moveit move_group.launch.py use_rviz:=false",
-    "kinova_vision": "ros2 launch kinova_vision rgbd_launch.py",
+    "kinova_vision": "ros2 launch kinova_vision kinova_vision.launch.py",
     "realsenses": "ros2 launch rrl_launchers realsenses_launch.py",
+    "livox_driver": "ros2 launch livox_ros_driver2 msg_MID360_launch.py",
+
     # Mobility
-    "octo_realsenses": "ros2 launch octomap_server octomap_realsenses_launch.py",
+    "octo_livox": "ros2 launch octomap_server octomap_livox_launch.py",
     "octo_spot": "ros2 launch octomap_server octomap_spot_launch.py",
     "frame_runner": "ros2 launch gpp_action_examples frame_runner_launch.py",
+
     # Dexterity
     "audio_capture": "ros2 run audio_capture audio_capture_node --ros-args -p format:=wave -r __ns:=/nuc",
     "audio_play": "ros2 run audio_play audio_play_node --ros-args -p format:=wave -r __ns:=/operator",
