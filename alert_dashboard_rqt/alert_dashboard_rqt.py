@@ -2,7 +2,6 @@
 
 import os
 import sys
-
 import rclpy
 from ament_index_python import get_package_share_directory
 
@@ -20,15 +19,13 @@ from rqt_gui.main import Main
 # Import shared window commands
 from alert_dashboard_rqt.window_commands import ALL_WINDOW_COMMANDS
 
-
 MAX_USER = os.getenv("MAX_USER")
-MAX_IP = os.getenv("MAX_IP", "localhost")  # Default to localhost for local testing
+MAX_IP = os.getenv("MAX_IP", "localhost")
 SESSION_NAME = "spot_session"
 
 if MAX_USER is None:
     print("MAX_USER environment variable is not set.")
-    exit()
-
+    sys.exit(1)
 
 class DashboardRqtPlugin(Plugin):
     def __init__(self, context):
@@ -41,144 +38,140 @@ class DashboardRqtPlugin(Plugin):
             + "/resource/mainwindow.ui"
         )
 
-        # Create a QWidget instance
         self._widget = QWidget()
-
-        # Load the .ui file
-        ui_file = ui_path
-        loadUi(ui_file, self._widget)
-
-        # Add the widget to the user interface
+        loadUi(ui_path, self._widget)
         context.add_widget(self._widget)
 
-        # Dictionary of all buttons, labels. Connect them with respective callbacks as well
+        # Dictionary to store references to UI elements
         self.bnl = {}
+        
         for button in ALL_WINDOW_COMMANDS.keys():
-            self.bnl[f"{button}_push"] = self._widget.findChild(
-                QPushButton, f"{button}_push"
-            )
-            
-            # Skip if button doesn't exist in UI
-            if self.bnl[f"{button}_push"] is None:
-                continue
-                
-            self.bnl[f"{button}_push"].toggled.connect(
-                lambda checked, btn=button: self.button_push_cb(btn, checked)
-            )
+            # 1. PUSH BUTTONS: These are toggles (On/Off)
+            push_name = f"{button}_push"
+            btn_push = self._widget.findChild(QPushButton, push_name)
+            if btn_push:
+                self.bnl[push_name] = btn_push
+                # CRITICAL: This allows setChecked() and the toggled signal to work
+                btn_push.setCheckable(True) 
+                btn_push.toggled.connect(
+                    lambda checked, btn=button: self.button_push_cb(btn, checked)
+                )
 
-            self.bnl[f"{button}_tool"] = self._widget.findChild(
-                QToolButton, f"{button}_tool"
-            )
-            self.bnl[f"{button}_tool"].clicked.connect(
-                lambda checked, btn=button: self.toolbutton_cb(btn, checked)
-            )
+            # 2. TOOL BUTTONS: These are momentary triggers (Focus/Select)
+            tool_name = f"{button}_tool"
+            btn_tool = self._widget.findChild(QToolButton, tool_name)
+            if btn_tool:
+                self.bnl[tool_name] = btn_tool
+                # ToolButtons are NOT checkable; they just fire a click event
+                btn_tool.clicked.connect(
+                    lambda _, btn=button: self.toolbutton_cb(btn)
+                )
 
-            self.bnl[f"{button}_label"] = self._widget.findChild(
-                QLabel, f"{button}_label"
-            )
+            # 3. LABELS: For status display
+            label_name = f"{button}_label"
+            lbl = self._widget.findChild(QLabel, label_name)
+            if lbl:
+                self.bnl[label_name] = lbl
 
-        # Initialize with all windows expected to be active (toggles on by default)
-        # Only include windows that have UI buttons
-        self.expected_active_windows = [
-            btn for btn in ALL_WINDOW_COMMANDS.keys() 
-            if self.bnl.get(f"{btn}_push") is not None
-        ]
+        # Initialize tracking list for windows we expect to be running
+        self.expected_active_windows = []
         
-        # Set all toggles to checked by default
-        for button in self.expected_active_windows:
-            self.bnl[f"{button}_push"].setChecked(True)
-        
-        self.node.create_timer(2, self.check_expected_windows)
-
-        # Use API client instead of SSH
+        # Use API client for TMUX control
         from alert_dashboard_rqt.tmux_api_client import TmuxAPIClient
         self.tmux = TmuxAPIClient(MAX_IP, SESSION_NAME)
-        
         self.tmux.new_session()
 
+        # Timer to poll status every 2 seconds
+        self.node.create_timer(2.0, self.check_expected_windows)
+
     def check_expected_windows(self):
-        # Check connection status first
+        """Poll the robot to see which windows are actually running."""
         if not self.tmux.connected:
-            # Show disconnected status for all expected windows
-            error_msg = f"⚠️ Disconnected"
+            error_msg = "⚠️ Disconnected"
             if self.tmux.last_error:
                 error_msg += f": {self.tmux.last_error}"
             
-            for window in self.expected_active_windows:
-                self.bnl[f"{window}_label"].setText(error_msg)
-                self.bnl[f"{window}_label"].setStyleSheet("color: orange")
+            for window in ALL_WINDOW_COMMANDS.keys():
+                lbl = self.bnl.get(f"{window}_label")
+                if lbl:
+                    lbl.setText(error_msg)
+                    lbl.setStyleSheet("color: orange")
             return
-        
-        # Get window list with process status
+
         try:
             windows_metadata = self.tmux.get_windows_status()
-            if not windows_metadata:
+            if windows_metadata is None:
                 return
             
+            # Map window names to their status info
             windows_status = {w["name"]: w for w in windows_metadata}
         except Exception as e:
             print(f"Failed to get window status: {e}")
             return
 
-        # Check each expected window
-        for expected_window in self.expected_active_windows[:]:  # Use slice to iterate over copy
-            window_info = windows_status.get(expected_window)
-            
+        for window_name in ALL_WINDOW_COMMANDS.keys():
+            window_info = windows_status.get(window_name)
+            lbl = self.bnl.get(f"{window_name}_label")
+            btn = self.bnl.get(f"{window_name}_push")
+
+            # Block signals temporarily to prevent infinite loop while we sync the UI state
+            if btn:
+                btn.blockSignals(True)
+
             if window_info is None:
-                # Window doesn't exist at all - uncheck toggle and clear label
-                self.bnl[f"{expected_window}_push"].setChecked(False)
-                self.bnl[f"{expected_window}_label"].setText("")
-                self.bnl[f"{expected_window}_label"].setStyleSheet("")
-                # Remove from expected list
-                self.expected_active_windows.remove(expected_window)
+                # Window is dead/not present
+                if btn:
+                    btn.setChecked(False)
+                if lbl:
+                    lbl.setText("")
+                    lbl.setStyleSheet("")
+                if window_name in self.expected_active_windows:
+                    self.expected_active_windows.remove(window_name)
             
             elif not window_info.get("has_process", False):
-                # Window exists but no process running (CRASHED)
-                # Only update if not already showing crash status
-                if self.bnl[f"{expected_window}_label"].text() != "💥 CRASHED":
-                    self.bnl[f"{expected_window}_label"].setText("💥 CRASHED")
-                    self.bnl[f"{expected_window}_label"].setStyleSheet(
-                        "color: red; font-weight: bold; background-color: yellow"
-                    )
+                # Window exists but shell is empty (Crash)
+                if btn:
+                    btn.setChecked(True)
+                if lbl:
+                    lbl.setText("💥 CRASHED")
+                    lbl.setStyleSheet("color: red; font-weight: bold; background-color: yellow")
             
             else:
-                # Window exists AND process is running
-                self.bnl[f"{expected_window}_label"].setText("✓ Running")
-                self.bnl[f"{expected_window}_label"].setStyleSheet("color: green")
+                # Window is healthy
+                if btn:
+                    btn.setChecked(True)
+                if lbl:
+                    lbl.setText("✓ Running")
+                    lbl.setStyleSheet("color: green")
+                if window_name not in self.expected_active_windows:
+                    self.expected_active_windows.append(window_name)
 
-        # Auto press buttons if the program windows are already running
-        for window_name, window_info in windows_status.items():
-            if window_name not in ALL_WINDOW_COMMANDS.keys():
-                continue
+            # Re-enable signals after sync
+            if btn:
+                btn.blockSignals(False)
 
-            if window_name not in self.expected_active_windows and window_info.get("has_process", False):
-                self.expected_active_windows.append(window_name)
-                if self.bnl.get(f"{window_name}_push") is not None:
-                    self.bnl[f"{window_name}_push"].setChecked(True)
-
-
-    def button_push_cb(self, button, checked):
-        window_name = button
-
+    def button_push_cb(self, button_name, checked):
+        """Handle the On/Off toggle for a specific window."""
         if checked:
-            # Only start the window and run the command if it's not already active
-            if window_name not in self.expected_active_windows:
+            if button_name not in self.expected_active_windows:
                 self.tmux.temporary_window(
-                    window_name,
-                    ALL_WINDOW_COMMANDS[window_name],
+                    button_name,
+                    ALL_WINDOW_COMMANDS[button_name],
                 )
-                self.expected_active_windows.append(window_name)
+                self.expected_active_windows.append(button_name)
         else:
-            # Kill window and remove the window_name from expected_active_windows
-            self.tmux.kill_window(window_name)
-            if window_name in self.expected_active_windows:
-                self.expected_active_windows.remove(window_name)
-            self.bnl[f"{window_name}_label"].setText("")
+            self.tmux.kill_window(button_name)
+            if button_name in self.expected_active_windows:
+                self.expected_active_windows.remove(button_name)
+            
+            lbl = self.bnl.get(f"{button_name}_label")
+            if lbl:
+                lbl.setText("")
 
-    def toolbutton_cb(self, button, checked):
-        window_name = button
-        print(window_name)
-        self.tmux.window_select(window_name)
+    def toolbutton_cb(self, button_name):
+        """Handle focusing/selecting a window."""
+        print(f"Selecting window: {button_name}")
+        self.tmux.window_select(button_name)
 
     def shutdown_plugin(self):
         self.node.destroy_node()
@@ -189,17 +182,12 @@ class DashboardRqtPlugin(Plugin):
     def restore_settings(self, plugin_settings, instance_settings):
         pass
 
-
 def main():
     """Run the plugin."""
-    # Initialize the ROS node
     rclpy.init()
-
-    # Create the plugin and run it
     sys.exit(
         Main().main(sys.argv, standalone="alert_dashboard_rqt.alert_dashboard_rqt")
     )
-
 
 if __name__ == "__main__":
     main()
