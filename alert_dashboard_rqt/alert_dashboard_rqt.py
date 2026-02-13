@@ -153,7 +153,8 @@ class DashboardRqtPlugin(Plugin):
 
             if window_name not in self.expected_active_windows and window_info.get("has_process", False):
                 self.expected_active_windows.append(window_name)
-                self.bnl[f"{window_name}_push"].setChecked(True)
+                if self.bnl.get(f"{window_name}_push") is not None:
+                    self.bnl[f"{window_name}_push"].setChecked(True)
 
 
     def button_push_cb(self, button, checked):
