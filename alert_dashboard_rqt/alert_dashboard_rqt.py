@@ -111,17 +111,11 @@ class DashboardRqtPlugin(Plugin):
         
         # Get window list with process status
         try:
-            import requests
-            response = requests.get(
-                f"{self.tmux.base_url}/api/windows",
-                headers=self.tmux.headers,
-                timeout=2
-            )
-            if response.status_code != 200:
+            windows_metadata = self.tmux.get_windows_status()
+            if not windows_metadata:
                 return
             
-            data = response.json()
-            windows_status = {w["name"]: w for w in data.get("windows", [])}
+            windows_status = {w["name"]: w for w in windows_metadata}
         except Exception as e:
             print(f"Failed to get window status: {e}")
             return

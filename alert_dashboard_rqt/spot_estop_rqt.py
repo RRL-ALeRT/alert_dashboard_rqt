@@ -485,21 +485,13 @@ class EstopRqtPlugin(Plugin):
                 return
             
             try:
-                import requests
-                response = requests.get(
-                    f"{self.tmux.base_url}/api/windows",
-                    headers=self.tmux.headers,
-                    timeout=2
-                )
-                if response.status_code != 200:
-                    self.estop_status_label.setText(f"⚠️ API Error: {response.status_code}")
-                    self.estop_status_label.setStyleSheet("color: orange; font: bold 14px")
-                    self.frame_runner_status_label.setText(f"⚠️ API Error")
-                    self.frame_runner_status_label.setStyleSheet("color: orange; font: bold 12px")
+                windows_metadata = self.tmux.get_windows_status()
+                if not windows_metadata:
+                    # If connected but list empty, might be API error or just no windows
+                    # We don't want to spam errors if it's just empty
                     return
                 
-                data = response.json()
-                windows_status = {w["name"]: w for w in data.get("windows", [])}
+                windows_status = {w["name"]: w for w in windows_metadata}
                 
                 # Check estop window
                 estop_window = windows_status.get("estop")

@@ -31,6 +31,7 @@ class TmuxAPIClient:
         self.session_name = session_name
         self.connected = False
         self.last_error = None  # Track last error for UI display
+        self.headers = {}  # Compatibility with old client
         self._reconnect_thread = None
         self._should_reconnect = True
         
@@ -211,4 +212,29 @@ class TmuxAPIClient:
         except Exception as e:
             print(f"Error getting windows: {e}")
             self.connected = False
+            return []
+
+    def get_windows_status(self) -> List[dict]:
+        """
+        Get full status of all windows
+        
+        Returns:
+            List of window status dictionaries
+        """
+        if not self.connected:
+            return []
+            
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/windows",
+                timeout=2
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("windows", [])
+            else:
+                print(f"Failed to get window status: {response.status_code}")
+                return []
+        except Exception as e:
+            print(f"Error getting window status: {e}")
             return []
