@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 
 import os
 import sys
@@ -42,68 +42,59 @@ class DashboardRqtPlugin(Plugin):
         loadUi(ui_path, self._widget)
         context.add_widget(self._widget)
 
-        # Dictionary to store references to UI elements
         self.bnl = {}
         
         for button in ALL_WINDOW_COMMANDS.keys():
-            # 1. PUSH BUTTONS: These are toggles (On/Off)
+            # 1. PUSH BUTTONS (Toggle On/Off)
             push_name = f"{button}_push"
             btn_push = self._widget.findChild(QPushButton, push_name)
             if btn_push:
                 self.bnl[push_name] = btn_push
-                # CRITICAL: This allows setChecked() and the toggled signal to work
-                btn_push.setCheckable(True) 
+                btn_push.setCheckable(True)
+                btn_push.setToolTip(f"ID: {button}") 
                 btn_push.toggled.connect(
                     lambda checked, btn=button: self.button_push_cb(btn, checked)
                 )
 
-            # 2. TOOL BUTTONS: These are momentary triggers (Focus/Select)
+            # 2. TOOL BUTTONS (Select Window)
             tool_name = f"{button}_tool"
             btn_tool = self._widget.findChild(QToolButton, tool_name)
             if btn_tool:
                 self.bnl[tool_name] = btn_tool
-                # ToolButtons are NOT checkable; they just fire a click event
+                btn_tool.setToolTip(f"Focus: {button}")
                 btn_tool.clicked.connect(
                     lambda _, btn=button: self.toolbutton_cb(btn)
                 )
 
-            # 3. LABELS: For status display
+            # 3. LABELS (Minimalist Status)
             label_name = f"{button}_label"
             lbl = self._widget.findChild(QLabel, label_name)
             if lbl:
                 self.bnl[label_name] = lbl
+                lbl.setText(button) # Show name by default
 
-        # Initialize tracking list for windows we expect to be running
         self.expected_active_windows = []
         
-        # Use API client for TMUX control
         from alert_dashboard_rqt.tmux_api_client import TmuxAPIClient
         self.tmux = TmuxAPIClient(MAX_IP, SESSION_NAME)
         self.tmux.new_session()
 
-        # Timer to poll status every 2 seconds
         self.node.create_timer(2.0, self.check_expected_windows)
 
     def check_expected_windows(self):
-        """Poll the robot to see which windows are actually running."""
+        """Poll the robot and update UI state with minimalist icons."""
         if not self.tmux.connected:
-            error_msg = "⚠️ Disconnected"
-            if self.tmux.last_error:
-                error_msg += f": {self.tmux.last_error}"
-            
             for window in ALL_WINDOW_COMMANDS.keys():
                 lbl = self.bnl.get(f"{window}_label")
                 if lbl:
-                    lbl.setText(error_msg)
-                    lbl.setStyleSheet("color: orange")
+                    lbl.setText("⚠️")
+                    lbl.setStyleSheet("color: orange; font-weight: bold;")
             return
 
         try:
             windows_metadata = self.tmux.get_windows_status()
             if windows_metadata is None:
                 return
-            
-            # Map window names to their status info
             windows_status = {w["name"]: w for w in windows_metadata}
         except Exception as e:
             print(f"Failed to get window status: {e}")
@@ -114,63 +105,49 @@ class DashboardRqtPlugin(Plugin):
             lbl = self.bnl.get(f"{window_name}_label")
             btn = self.bnl.get(f"{window_name}_push")
 
-            # Block signals temporarily to prevent infinite loop while we sync the UI state
             if btn:
                 btn.blockSignals(True)
 
             if window_info is None:
-                # Window is dead/not present
-                if btn:
-                    btn.setChecked(False)
+                if btn: btn.setChecked(False)
                 if lbl:
-                    lbl.setText("")
-                    lbl.setStyleSheet("")
+                    lbl.setText(window_name) # Show name when off
+                    lbl.setStyleSheet("color: gray")
                 if window_name in self.expected_active_windows:
                     self.expected_active_windows.remove(window_name)
             
             elif not window_info.get("has_process", False):
-                # Window exists but shell is empty (Crash)
-                if btn:
-                    btn.setChecked(True)
+                if btn: btn.setChecked(True)
                 if lbl:
-                    lbl.setText("💥 CRASHED")
-                    lbl.setStyleSheet("color: red; font-weight: bold; background-color: yellow")
+                    lbl.setText("💥")
+                    lbl.setStyleSheet("background-color: yellow")
             
             else:
-                # Window is healthy
-                if btn:
-                    btn.setChecked(True)
+                if btn: btn.setChecked(True)
                 if lbl:
-                    lbl.setText("✓ Running")
-                    lbl.setStyleSheet("color: green")
+                    lbl.setText("✓")
+                    lbl.setStyleSheet("color: green; font-weight: bold;")
                 if window_name not in self.expected_active_windows:
                     self.expected_active_windows.append(window_name)
 
-            # Re-enable signals after sync
             if btn:
                 btn.blockSignals(False)
 
     def button_push_cb(self, button_name, checked):
-        """Handle the On/Off toggle for a specific window."""
         if checked:
             if button_name not in self.expected_active_windows:
-                self.tmux.temporary_window(
-                    button_name,
-                    ALL_WINDOW_COMMANDS[button_name],
-                )
+                self.tmux.temporary_window(button_name, ALL_WINDOW_COMMANDS[button_name])
                 self.expected_active_windows.append(button_name)
         else:
             self.tmux.kill_window(button_name)
             if button_name in self.expected_active_windows:
                 self.expected_active_windows.remove(button_name)
-            
             lbl = self.bnl.get(f"{button_name}_label")
             if lbl:
-                lbl.setText("")
+                lbl.setText(button_name)
+                lbl.setStyleSheet("color: gray")
 
     def toolbutton_cb(self, button_name):
-        """Handle focusing/selecting a window."""
-        print(f"Selecting window: {button_name}")
         self.tmux.window_select(button_name)
 
     def shutdown_plugin(self):
@@ -183,7 +160,6 @@ class DashboardRqtPlugin(Plugin):
         pass
 
 def main():
-    """Run the plugin."""
     rclpy.init()
     sys.exit(
         Main().main(sys.argv, standalone="alert_dashboard_rqt.alert_dashboard_rqt")
