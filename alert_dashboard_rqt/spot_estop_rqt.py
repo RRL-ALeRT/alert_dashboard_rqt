@@ -10,6 +10,7 @@ from rclpy.qos import QoSProfile
 
 from std_msgs.msg import String
 from std_srvs.srv import Empty, Trigger, SetBool
+from bring_up_alert_nav.srv import StartNav
 try:
     from spot_msgs.msg import BatteryStateArray
 except ImportError:
@@ -88,7 +89,7 @@ class EstopRqtPlugin(Plugin):
         )
 
         self.nav_3d_follow_path_client = self.node.create_client(
-            SetBool, "/navigation/follow_path"
+            StartNav, "/exe_path/start_nav"
         )
 
         # Create the main widget and set up the layout
@@ -799,11 +800,11 @@ done
     def follow_path_command(self):
         if not self.nav_3d_follow_path_client.wait_for_service(timeout_sec=1.0):
             self.node.get_logger().info(
-                "service /navigation/follow_path not available, skipping command"
+                "service /exe_path/start_nav not available, skipping command"
             )
         else:
-            req = SetBool.Request()
-            req.data = True
+            req = StartNav.Request()
+            req.mode = 1
             self.nav_3d_follow_path_client.call_async(req)
 
     def shutdown_plugin(self):
